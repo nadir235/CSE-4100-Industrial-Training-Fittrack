@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin()  { return signedIn() && request.auth.token.admin == true; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+
+    // ---- Member profile: only the member can read/write it. Admins use the API (limited fields). ----
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().size() < 40
+        && (!('photoData' in request.resource.data) || request.resource.data.photoData.size() < 120000);
+      allow delete: if false;
+    }
+
+    // ---- Member-owned data. Collections are whitelisted so server-managed ones stay server-only. ----
+    match /users/{uid}/{col}/{id} {
+      allow read, write: if isOwner(uid) && col in [
+        'workoutLogs', 'customWorkouts', 'weights', 'calcHistory', 'water', 'fasting',
+        'running', 'faceRoutines', 'faceLogs', 'meals'
+      ];
+    }
+
+    // Notifications are created by the server; the member may only mark them read or delete them.
+    match /users/{uid}/notifications/{id} {
+      allow read, delete: if isOwner(uid);
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow create: if false;
+    }
+
+    // AI chat is written by the server only (so history can't be forged); the member can read it.
+    match /users/{uid}/aiChat/{id} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    // ---- Gym data ----
+    match /plans/{id} {
+      allow read: if signedIn();
+      allow write: if false;            // managed through the admin API
+    }
+    match /subscriptions/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if false;            // only changes after SERVER-side payment verification / admin action
+    }
+    match /payments/{id} {
+      allow read: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+    match /announcements/{id} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /admins/{id} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

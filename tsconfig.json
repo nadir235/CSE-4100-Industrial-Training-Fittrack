@@ -1,0 +1,15 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true
+  },
+  "include": [
+    "src",
+    "*.d.ts"
+  ],
+  "exclude": [
+    "backend",
+    "tests",
+    "node_modules"
+  ]
+}

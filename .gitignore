@@ -1,0 +1,8 @@
+node_modules
+.expo
+dist
+.env
+backend/.env
+backend/node_modules
+backend/serviceAccount.json
+*.log
